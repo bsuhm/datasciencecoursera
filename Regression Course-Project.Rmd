@@ -1,0 +1,99 @@
+---
+title: "Regression Course Project"
+author: "Bernhard Suhm"
+date: "Monday, October 20, 2014"
+output: html_document
+questions:
+- Is an automatic or manual transmission better for MPG?
+- Quantify the MPG difference between automatic and manual transmissions
+---
+
+First, let's remind ourselves what the various in the mtcars dataset mean (and make our life easier by attaching to the mtcars data frame)
+```{r}
+help(mtcars)
+attach(mtcars)
+```
+
+So we need to explore the relationship between the variables "mgp"" and "am".
+Let's first visualize that relationship:
+```{r, echo=FALSE}
+plot(am,mpg,xlab="Transmission",ylab="Gas Mileage")
+```
+
+Hypothesis testing
+------------------
+Given that both subsets represent data that clearly don't have a linear relationship, I started with a two sample t-test.
+```{r,echo=TRUE}
+am_mpg <- mpg[!mtcars$am]
+man_mpg <- mpg[mtcars$am==1]
+test <- t.test(man_mpg,am_mpg,alternative="greater",conf.level=0.95)
+test
+```
+
+So we can reject the null hypothesis that both samples have the same mean against the alternative, that cars with manual transmission have a greater gas mileage than those with automatic transmission. Though we don't know yet whether some of the other variables in the data set better explain the variation in gas mileage.
+
+We can estimate that manual transmissions have 
+```{r,echo=FALSE} 
+mean(man_mpg)-mean(am_mpg)
+```
+higher gas mileage than automatic ones. So we seem to have all the answers already. 
+
+But this simple model may overlook that variables other than the transmission type actually impact gas mileage more. Therefore I continued with some regression modeling.
+
+Regression analysis
+-------------------
+To get an idea which variables seem to have some predictive power I first build a linear model with all the variables as predictors of gas mileage:
+```{r,echo=TRUE}
+attach(mtcars)
+lin_model <- lm(mpg ~ ., data=mtcars)
+summary(lin_model)$coef
+```
+Based on this model, the variables with the biggest impact on gas mileage are weight (decreasing mileage) and transmission (manual increasing mileage), however none is significant at the 95% level.
+
+Next, to get an idea which variables are impacting gas mileage somewhat and which don't at all, I built simple regression models with each of the variable to determine which of them have a non-zero weight:
+```{r,echo=FALSE}
+summary(lm(mpg~factor(cyl)))$coef
+summary(lm(mpg~disp))$coef
+summary(lm(mpg~hp))$coef
+summary(lm(mpg~drat))$coef
+summary(lm(mpg~wt))$coef
+summary(lm(mpg~qsec))$coef
+summary(lm(mpg~factor(vs)))$coef
+summary(lm(mpg~factor(am)))$coef
+summary(lm(mpg~factor(gear)))$coef
+summary(lm(mpg~factor(carb)))$coef
+```
+So the following variables (taken independently) seem to have a significant effect on gas mileage:
+- positive: drat, vs, gear, am
+- negative: cyl, wt
+No (or a very small significant) effect have: disp, hp, qsec, carb
+
+Next I built a model with the positive and negative predictors only, as identified above:
+```{r,echo=TRUE}
+summary(lm(mpg~factor(cyl)+drat+wt+factor(vs)+factor(gear)+factor(am)))
+```
+In this model only wt has a significant weight. 
+
+Next I'll try to simplify the model by iteratively eliminating predictors that have small not significant weights, and keep going as long as the model explains more variablility (Note: if it weren't for actually improving the predictive power of the model, removing predictors from the model should reduce R^2). That way I eliminated drat and vs as predictors and get:
+```{r,echo=TRUE}
+summary(lm(mpg~factor(cyl)+wt+factor(gear)+factor(am)))
+```
+The fact that one level of factor gear has positive, the other negative weight, suggests it may have an interaction. Let's try that out with the otherwise strongest predictor, which is wt:
+```{r,echo=TRUE}
+summary(lm(mpg~factor(cyl)+factor(gear)*wt+factor(am)))
+```
+This model has the highest value of R^2 yet, and all but one level of factor cyl are significant. This is my candidate model.
+Interestingly, manual transmission has a negative impact on gas mileage in this model. So our hypothesis test mislead us: I interpret this result to mean that the simple relationship assumed for the hypothesis test (the only thing we changed between the two samples was transmission type) overlooked at least cyl as confound and much stronger predictor of gas mileage.
+
+Lastly, I'll apply the method of nested likelyhood ratios to confirm the model I arrived at is an improvement over simpler models:
+```{r,echo=TRUE}
+fit1 <- lm(mpg~factor(am))
+fit2 <- update(fit1,mpg~factor(am)+factor(cyl))
+fit3 <- update(fit2,mpg~factor(cyl)+factor(am)+factor(gear)*wt)
+anova(fit1,fit2,fit3)
+```
+So adding the factor cyl is an improvement over the basic model, and adding wt, gear and their interaction is yet another improvement. 
+And its residual plot doesn't show any suspicious pattern, see below.
+
+```{r,echo=FALSE}
+plot(resid(fit3),predict(fit3),ylab="Predicted Values",xlab="Residual")
