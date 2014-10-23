@@ -1,0 +1,101 @@
+---
+title: "Regression Course Project"
+author: "Bernhard Suhm"
+date: "Tuesday, October 21, 2014"
+output: pdf_document
+questions: you work for Motor Trend. Looking at data from a collection of cars, they
+  are interested
+in exploring the relationship between a set of variables and miles per gallon (MPG). Specifically:
+- Is an automatic or manual transmission better for MPG?
+- Quantify the MPG difference between automatic and manual transmissions
+---
+
+Summary:
+--------
+We explored various models and settled on one that whose predictors cyl and wt have a modestly negative impact on mpg, and type of transmission (variable "am") has a very strong positive impact, which however is tempered by an interaction with wt.
+
+Therefore manual transmission does lead to higher gas mileage - about 7 mpg based on this data set.
+
+Basic Data Exploration
+----------------------
+
+Let's first visualize that relationship in isolation:
+
+```{r, echo=FALSE}
+attach(mtcars)
+
+plot(am,mpg,xlab="Transmission",ylab="Gas Mileage")
+```
+
+As can be seen, the factor am separates the data into two samples, one for manual and the other for automatic transmission. In terms of hypothesis testing, the first question would thus translate to a two sample t-test:
+```{r,echo=TRUE}
+am_mpg <- mpg[!mtcars$am]
+man_mpg <- mpg[mtcars$am==1]
+test <- t.test(man_mpg,am_mpg,alternative="greater",conf.level=0.95)
+test
+```
+
+So we can reject the null hypothesis that both samples have the same mean against the alternative, that cars with manual transmission have a greater gas mileage than those with automatic transmission. We can estimate that manual transmissions have 
+```{r,echo=FALSE} 
+mean(man_mpg)-mean(am_mpg)
+```
+higher gas mileage than automatic ones.  
+
+But this simple model may overlook that other variables may actually impact gas mileage more than transmission type. Therefore next I continue with some regression modeling.
+
+Regression analysis
+-------------------
+To get an idea which variables seem to have some predictive power I first built a linear model with all the variables as predictors of gas mileage:
+```{r,echo=TRUE}
+attach(mtcars)
+lin_model <- lm(mpg ~ ., data=mtcars)
+summary(lin_model)$coef
+```
+Based on this model, the variables with the biggest impact on gas mileage are weight (decreasing mileage) and transmission (manual increasing mileage), however none is significant at the 95% level.
+
+Next, to get an idea which variables are predicting gas mileage "significantly" as sole explanatory variable, I built simple regression models with each of the variable to determine which of them have a non-zero weight:
+```{r,echo=FALSE}
+summary(lm(mpg~factor(cyl)))$coef
+summary(lm(mpg~disp))$coef
+summary(lm(mpg~hp))$coef
+summary(lm(mpg~drat))$coef
+summary(lm(mpg~wt))$coef
+summary(lm(mpg~qsec))$coef
+summary(lm(mpg~factor(vs)))$coef
+summary(lm(mpg~factor(am)))$coef
+summary(lm(mpg~factor(gear)))$coef
+summary(lm(mpg~factor(carb)))$coef
+```
+So the following variables (taken independently) seem to have a significant effect on gas mileage:
+- positive: drat, vs, gear, am
+- negative: cyl, wt
+qset and carb don't have significant weights at all; disp and hp both have very small slopes, hence don't contribute much to the prediction. We'll leaveall of these out of the model.
+
+This yields a model with the positive and negative predictors from above:
+```{r,echo=TRUE}
+summary(lm(mpg~factor(cyl)+drat+wt+factor(vs)+factor(gear)+factor(am)))
+```
+In this model only wt and one of the cyl factors has a significant weight, but let's look at the other variables some more.
+
+The model can be simplified by iteratively eliminating predictors that have very small weights and aren't significant (p-value>0.05), as long as the model explains more variablility (R^2 increases even though we are removing a predictor). That way, drat and vs are eliminated and we get:
+```{r,echo=TRUE}
+summary(lm(mpg~factor(cyl)+wt+factor(gear)+factor(am)))
+```
+wt and cyl consistenty have had significant weights, so they definitely remain part of the model. Not quite clear what's going on with gear and am. I suspect they are correlated - most modern cars have at least 5 gears and automatic transmission; cars with just 4 gears tend to be older or smaller, and driven by people who prefer to save the added cost of automatic transmission. My suspicion is confirmed since gear and am are correlated (cor(gear,am)=0.79). 
+
+Last, let's figure out whether we should keep am, gear or an interaction between them. To that end I built 4 models, first adding the interaction between wt and am, then wt and gear, finally both those interactions, and apaply the method of nested likelyhood ratios to determine which of the additional predictors should remain part of the model. Turns out only adding the interaction between wt and am is significant (model 2), hence should be kept.
+```{r,echo=TRUE}
+fit <- lm(mpg ~ factor(cyl) + wt + factor(am))
+fit1 <- update(fit,mpg ~ factor(cyl) + wt*factor(am))
+fit2 <- update(fit,mpg ~ factor(cyl) + wt*factor(gear))
+fit3 <- update(fit2,mpg~ factor(cyl)+wt*factor(gear)+wt*factor(am))
+anova(fit, fit1,fit2,fit3)
+summary(fit1)
+```
+That yields mpg ~ factor(cyl) + wt*factor(am) as the final candidate model. All (but one factor) have significant weight at the 99% level, so this seems to be a pretty good model.
+
+
+And its residual plot doesn't show any suspicious pattern, see below.
+
+```{r,echo=FALSE}
+plot(resid(fit3),predict(fit1),ylab="Predicted Values",xlab="Residual")
