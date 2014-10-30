@@ -6,5 +6,9 @@ This repository contains various scripts and data explorations performed in the 
 Courses taken to date (Oct'14):
 - Data Scientist' Toolkit
 - R Programming
-- Statistical Inference
+  * wrote scripts computing correlation from a set of data files
+- Statistical Inference:
+  * wrote simulation of exponential distribution, including its coverage function
+  * explored ToohGrowth data with hypotheses testing
 - Regression
+  * explored more complex linear model for mtcars data set
