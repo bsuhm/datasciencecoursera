@@ -147,6 +147,6 @@ confint.agnostic <- function (object, parm, level = 0.95, ...)
 # help(father.son)
 # n<-length(x)
 # B<-10000
-# resamples<-matrix(sample(x,n*B,replace=TRUE),B,n)
-# resampledMeans<-apply(resamples,1,median)
+# resamples<-matrix(sample(x,n*B,replace=TRUE),B,n)  draw n samples from height with replacement B times
+# resampledMeans<-apply(resamples,1,median) calc meadian on rows of matrix generated above
 # hist(resampledMeans,breaks=40)
