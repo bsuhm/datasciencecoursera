@@ -68,17 +68,17 @@ Question 4:
 -----------
 Evaluate the coverage of the standard 95% confidence interval for lambda.
 
-With the above defined function phats_exp that simulates n_sim times computing the average of n values of the exponential distribution 
+With the above defined function *phats_exp* that simulates n_sim times computing the average of n values of the exponential distribution 
 we can apply the same code as used during the lecture on a vector of different lambdas, and use 1/lambda as the standard deviation of the exponential distribution (we could also compute the empirical sample standard error, but I have already demonstrated in question 2 above that's about the same):
 ```{r,echo=TRUE}
 lambdas <- seq(0.1,0.9,by=0.05)
 n <- 40
 nosim <- 1000
 coverage <- sapply(lambdas, function(p) {
-    phats <- phats_exp(10,p,n)
+    phats <- phats_exp(nosim,p,n)
     ll <- phats - qnorm(0.975)/(p*sqrt(n))
     ul <- phats + qnorm(0.975)/(p*sqrt(n))
-    mean(ll>1/p & ul>1/p)
+    mean(ll<1/p & ul>1/p)
 })
   
 plot(lambdas,coverage, type="l", xlab="lambda")
@@ -108,4 +108,6 @@ To investigate the effect of dose on tooth growth I'll apply a regression model.
 fit<-lm(len~dose+factor(supp))
 summary(fit)
 ```
-Not surprisingly, the regression confirms the factor supplement has an impact. But also the variable dose is highly significant.
+Not surprisingly, the regression confirms that
+- the factor supplement has an impact
+- But also the variable dose is highly significant.
