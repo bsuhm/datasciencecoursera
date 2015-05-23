@@ -12,3 +12,6 @@ Courses taken to date (Oct'14):
   * explored ToohGrowth data with hypotheses testing
 - Regression
   * explored more complex linear model for mtcars data set
+- Practical Machine Learning
+  * Followed along the class exercises in "load_practicalML.R"
+  * Explored Human Activity Recognition data set for project

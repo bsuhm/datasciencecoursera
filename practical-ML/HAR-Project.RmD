@@ -1,0 +1,101 @@
+---
+title: "HAR Data Analysis"
+author: "Bernhard Suhm"
+date: "Thursday, May 14, 2015"
+output: html_document
+---
+
+
+Preparation
+-----------
+
+(Note to myself for future reference) This work will access the caret package, kernlab (for the spam dataset), and Hmisc. Remember you need two steps, install.packages, followed by library.
+
+We begin by loading the training data set and partitioning it into 60% training and 40% for and cross validation and testing. 
+```{r, echo=FALSE}
+HAR <- read.csv("pml-training.csv", na.string=c("NA","#DIV/0!"))
+clean <- HAR[,8:160]
+inTrain <- createDataPartition(clean$classe,p=0.6,list=FALSE)
+train_har <-HAR[inTrain,]
+heldout <- HAR[-inTrain,]
+```
+
+Next we need to select the variables we'll actually use in the model. First step, let's identify which variables are near zero and thus will have little predictive power. Once that's done, we can split the 40% into a cross validation and test set with the 27 near zero variables eliminated.
+```{r, echo=TRUE}
+nzv_har <- nearZeroVar(train_har,saveMetrics=TRUE)
+nzv_har
+sum(nzv_har$nzv==TRUE)
+train<-train_har[!nzv$nzv]
+heldout<-test_har[!nzv$nzv]
+testSplit <- createDataPartition(heldout$classe,p=0.5,list=FALSE)
+test<-heldout[testSplit,]
+crossVal<-heldout[-testSplit,]
+```
+
+Then I explored which variables separated the outcome variables visually in plots, only among the non near zero ones. Visually, the following variables had some predictive power:
+- All three belt (roll, pitch, yaw), max_roll_belt, max_pitch_belt
+- avg_roll_belt clustered around 0 or 125-150
+- var_total_accel_belt (A,B,C near zero, D, E wide spread. Correlated with stddev_roll_belt, which shows 2 logarithmic arcs)
+- forearm: pitch and roll
+
+Variables I eliminated:
+- total_accel_belt, min_pitch_belt: values pretty much spread out for 5 outcomes in question
+- amplitude_X_belt: X=roll almost all near 0, X=pitch all over the spectrum for E (others not clear)
+
+Though the following get a more reasonable distribution as log10: amplitude_roll_belt
+
+Next, I checked the variables I kept above for skewdness, plotting them as a one dimensional histogram, and thus further eliminated: var_total_accel_belt, stddev_roll_belt (RECHECK!), 
+
+Finally, I let principal component analysis help me reduce feature dimensionality.
+```{r, echo=TRUE}
+```
+
+Model Training
+--------------
+
+First, I wanted to train a linear model, even though my intuition suggested that's probably not a good fit for this problem. The caret train function had trouble using all variables, but then I used the gbm package and succeeded training a model using use the 52 "original" variables, excluding all the ones that were derived by calculating features on some window of data (thanks to Edward Drake for explaining this so nicely in the discussion forum!). 
+```{r, echo=FALSE}
+library(gbm)
+fol52 <- formula(classe ~ roll_forearm + pitch_forearm + yaw_forearm + total_accel_forearm + gyros_forearm_x +gyros_forearm_y +  gyros_forearm_z + accel_forearm_x + accel_forearm_y + accel_forearm_z + magnet_forearm_x + magnet_forearm_y + magnet_forearm_z + roll_belt + pitch_belt + yaw_belt + total_accel_belt + gyros_belt_x +gyros_belt_y +  gyros_belt_z + accel_belt_x + accel_belt_y + accel_belt_z + magnet_belt_x + magnet_belt_y + magnet_belt_z + roll_dumbbell + pitch_dumbbell + yaw_dumbbell + total_accel_dumbbell + gyros_dumbbell_x +gyros_dumbbell_y +  gyros_dumbbell_z + accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z + magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z+roll_arm + pitch_arm + yaw_arm + total_accel_arm + gyros_arm_x +gyros_arm_y +  gyros_arm_z + accel_arm_x + accel_arm_y + accel_arm_z + magnet_arm_x + magnet_arm_y + magnet_arm_z)
+m_gbm52 <- gbm(fol52,data=train_nzv)
+p_gbm52<- predict(m_gbm52,crossVal,n.trees=100,type="response")
+pCV_gbm52<-apply(p_gbm52,1,which.max) # need to pick out best choice since predict returns a vector of pseudo probs
+accCV_gbm52<-sum(pCV_gbm52==as.numeric(crossVal$classe))/nrow(crossVal)
+```
+
+The dominant variables in this model by far are roll_belt and pitch_forearm, with some influence by magnet_dumbbell_y, accel_forearm_x, and roll_dumbbell. Only two other variables have non zero influence at all: gyros_dumbbell_y and accel_dumbbel_x. The fact that only 7 out of 52 predictors had a non-zero influence is somewhat disconcerning. Therefore not surprisingly, it's accuracy is rather low, 50% on the cross validation set. We are even less surprised when we plot the two dominant variables against the classes, we see some nice separation but clearly not with hyperplanes (linear functions).
+
+```{r, echo=TRUE}
+qplot(roll_belt,pitch_forearm,color=classe,data=train_nzv)
+```
+
+Next I tried LDA, more for practice than seriously expecting it to be the best performer, since I already mentioned earlier the plots aren't separable by hyperplanes upon visual inspection of some clearly important predictor variables.
+```{r, echo=FALSE}
+m_lda52<-train(fol52,method="lda",data=train_nzv)
+p_lda52 <- predict(m_lda52,crossVal,type="raw")
+acc_lda52 <- sum(p_lda52==crossVal$classe)/nrow(crossVal)
+```
+This model gets 69.9% accuracy on cross validation. Reducing the variables with PCA (using the preprocessing step that's built into the caret train package) actually lowers the accuracy to 53.3%.
+
+Next, I trained a random forest on those same 52 variables, using the randomForest package that Bill Howe from University of Washington uses in his Data Science class. It runs a lot faster than the corresponding variant of train in the caret package!
+
+```{r, echo=FALSE}
+library(randomForest)
+m_rf52 <- randomForest(fol52,data=train_nzv)
+p_rf52 <- predict(m_rf52,crossVal,type="class")
+acc_rf52 <- sum(p_rf52==crossVal$classe)/nrow(crossVal)
+```
+That model got a surprising 99.3% accuracy on the cross validation set. Let's see which variables had the greatest influence - roll_best, yaw_belt, pitch_forearm, and plot the top two against the categories like above:
+```{r, echo=TRUE}
+rf_imp <- importance(m_rf)
+sort(rf_imp[,1],decreasing=TRUE)
+qplot(roll_belt,yaw_belt,color=classe,data=train_nzv)
+```
+
+
+
+
+
+
+
+
