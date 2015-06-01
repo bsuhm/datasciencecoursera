@@ -1,7 +1,7 @@
 ---
 title: "HAR Data Analysis"
 author: "Bernhard Suhm"
-date: "Thursday, May 14, 2015"
+date: "Thursday, May 23, 2015"
 output: html_document
 ---
 
@@ -17,8 +17,8 @@ library(caret)
 HAR <- read.csv("pml-training.csv", na.string=c("NA","#DIV/0!"))
 clean <- HAR[,8:160]
 inTrain <- createDataPartition(clean$classe,p=0.6,list=FALSE)
-train_har <-HAR[inTrain,]
-heldout_har <- HAR[-inTrain,]
+train_har <-clean[inTrain,]
+heldout_har <- clean[-inTrain,]
 ```
 
 Next we need to select the variables we'll actually use in the model. First step, let's remove all variables are near zero and thus will have little predictive power. Once that's done, we can split the 40% into a cross validation and test set consisting of 20% of the original data, with the 27 near zero variables eliminated. We'll use the cross validation set to explore different models, and the test set (only once, with the best performing model on the cross validation set) to get a good estimate of accuracy on completely new (unseen) data.
@@ -37,12 +37,17 @@ Then I explored which variables separated the outcome variables visually in plot
 * forearm: pitch and roll
 though then I realized that all but the 52 "original" data variables were primarily NA values, hence not suitable for model training. With "original" I mean the ones that represent sensor measurements, as opposed to those derived from measurements by applying a window over the original data - thanks to Edward Drake for explaining this so nicely in the discussion forum! I suspect something is wrong with the data offered on the website, i.e., there was a bug when they calculated those derived measures. So for the model training phase, we'll just be using the 52 variables.
 
+This I added after submitting the project, from the discussion forum. Running PCA on those 52 variables shows how clearly delineated the 6 subjects are.
+```{r, echo=TRUE}
+PCA<-preProcess(train[,6:58],method="pca",pcaComp=2)
+qplot(PC1,PC2,data=predict(PCA,train[,6:58]),color=train$user_name)
+```
 
 Model Training
 --------------
 
 First, I wanted to train a linear model, even though my intuition suggested that's probably not a good fit for this problem. The caret train function had trouble using all variables, but then I used the gbm package and succeeded training a model.
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 library(gbm)
 fol52 <- formula(classe ~ roll_forearm + pitch_forearm + yaw_forearm + total_accel_forearm + gyros_forearm_x +gyros_forearm_y +  gyros_forearm_z + accel_forearm_x + accel_forearm_y + accel_forearm_z + magnet_forearm_x + magnet_forearm_y + magnet_forearm_z + roll_belt + pitch_belt + yaw_belt + total_accel_belt + gyros_belt_x +gyros_belt_y +  gyros_belt_z + accel_belt_x + accel_belt_y + accel_belt_z + magnet_belt_x + magnet_belt_y + magnet_belt_z + roll_dumbbell + pitch_dumbbell + yaw_dumbbell + total_accel_dumbbell + gyros_dumbbell_x +gyros_dumbbell_y +  gyros_dumbbell_z + accel_dumbbell_x + accel_dumbbell_y + accel_dumbbell_z + magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z+roll_arm + pitch_arm + yaw_arm + total_accel_arm + gyros_arm_x +gyros_arm_y +  gyros_arm_z + accel_arm_x + accel_arm_y + accel_arm_z + magnet_arm_x + magnet_arm_y + magnet_arm_z)
 m_gbm <- gbm(fol52,data=train)
@@ -58,7 +63,7 @@ qplot(roll_belt,pitch_forearm,color=classe,data=train)
 ```
 
 Next I tried LDA, more for practice than seriously expecting it to be the best performer, since I already mentioned earlier the plots aren't separable by hyperplanes upon visual inspection of some clearly important predictor variables.
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 m_lda<-train(fol52,method="lda",data=train)
 p_lda <- predict(m_lda,crossVal,type="raw")
 acc_lda <- sum(p_lda==crossVal$classe)/nrow(crossVal)
@@ -67,7 +72,7 @@ This model gets 69.9% accuracy on cross validation. Reducing the variables with 
 
 Next, I trained a random forest on those same 52 variables, using the randomForest package that Bill Howe from University of Washington uses in his Data Science class. It runs a lot faster than the corresponding variant of train in the caret package!
 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 library(randomForest)
 m_rf <- randomForest(fol52,data=train)
 p_rf <- predict(m_rf,crossVal,type="class")
