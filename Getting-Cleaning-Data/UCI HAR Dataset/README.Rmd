@@ -1,0 +1,31 @@
+---
+title: "HAR Smartphone Data"
+author: "Bernhard Suhm"
+date: "Saturday, July 18, 2015"
+output: pdf_document
+---
+
+The Variables
+-------------
+
+Measurement (predictor) variables
+
+The outcome variable y has 6 values, corresponding to the six activities that subjects were performing, as follows:
+1 WALKING
+2 WALKING_UPSTAIRS
+3 WALKING_DOWNSTAIRS
+4 SITTING
+5 STANDING
+6 LAYING
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+
