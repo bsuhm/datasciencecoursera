@@ -13,5 +13,8 @@ Courses taken to date (Oct'14):
 - Regression
   * explored more complex linear model for mtcars data set
 - Practical Machine Learning
-  * Followed along the class exercises in "load_practicalML.R"
+  * Followed along the class exercises in "load_practicalML.R", as well as (from week 3 on) in "Model Training Quizz.Rmd""
   * Explored Human Activity Recognition data set for project
+- Getting and Cleaning Data
+  * Documented some key tasks in "Getting Cleaning Data.Rmd"
+  * Performed project in "UCI HAR Dataset" directory
