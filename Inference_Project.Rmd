@@ -1,0 +1,113 @@
+---
+title: "Inference Project"
+author: "Bernhard Suhm"
+date: "Tuesday, October 28, 2014"
+output: pdf_document
+---
+Task: explore the exponential distribution f(x) = l {e}^{-l*x} by simulating the
+average of 40 executions 1000 times.
+
+Here's some R code to return the average of n outcomes each, n_sim times simulated: 
+```{r,echo=TRUE}
+# simulate exponential distribution exp(lambda) n_sim times
+# computing averages over n simulations each
+phats_exp <- function(n_sim,lambda,n) {
+  
+  # as prep for using sapply, build up vector of number of executions
+  ns<-c(n)
+  for (i in 2:n_sim) ns<-c(n,ns)
+
+  # perform n_sim applications of rexp(n,lambda) and gather outcome of each
+  outcomes <- sapply(ns, function(x) rexp(x, lambda))
+  
+  # computer average of each set of n
+  avg <- numeric(n_sim)
+  for (i in 1:n_sim) {
+    #print(outcomes[,i])
+    avg[i] <- mean(outcomes[,i])
+  }
+  avg
+}
+```
+
+Question 1:
+-----------
+Show where the distribution is center at and compare it to the theoretical center of the distribution.
+
+To this end, let's use this code to simulate averages of 40 outcomes 1000 times, and calculate its mean:
+```{r, echo=TRUE}
+z <- phats_exp(1000,0.2,40)
+m_exp <- mean(z)
+m_exp
+```
+That should be pretty close to the expected mean, which is 5.
+
+Question 2:
+-----------
+Show how variable the distribution is and compare it to its theoretical variance.
+```{r,echo=FALSE}
+s_exp <- 1/999 * sum((z-m_exp)^2)
+s_exp
+```
+That should be pretty close to its expected variance, which is 1/{lambda^2*n} = 0.625
+
+Question 3:
+-----------
+We can use the Shapiro-Wilk test to check for normality. The p value is very small, indicating the distribution is essentially normal. No wonder since after 1000 simulations the empirical distribution should be approximately normal per CLT. 
+```{r,echo=TRUE}
+phats<-phats_exp(1000,0.2,40)
+shapiro.test(phats)
+```
+Not quite after just 100 simulations
+```{r,echo=TRUE}
+phats<-phats_exp(100,0.2,40)
+shapiro.test(phats)
+```
+
+Question 4:
+-----------
+Evaluate the coverage of the standard 95% confidence interval for lambda.
+
+With the above defined function *phats_exp* that simulates n_sim times computing the average of n values of the exponential distribution 
+we can apply the same code as used during the lecture on a vector of different lambdas, and use 1/lambda as the standard deviation of the exponential distribution (we could also compute the empirical sample standard error, but I have already demonstrated in question 2 above that's about the same):
+```{r,echo=TRUE}
+lambdas <- seq(0.1,0.9,by=0.05)
+n <- 40
+nosim <- 1000
+coverage <- sapply(lambdas, function(p) {
+    phats <- phats_exp(nosim,p,n)
+    ll <- phats - qnorm(0.975)/(p*sqrt(n))
+    ul <- phats + qnorm(0.975)/(p*sqrt(n))
+    mean(ll<1/p & ul>1/p)
+})
+  
+plot(lambdas,coverage, type="l", xlab="lambda")
+```
+
+Exploring the Toothgrowth data
+------------------------------
+In this data set, the average tooth length is 18.8. The plot suggests that the dose has an impact on tooth growth, whereas visually it's not clear whether the delivery method has an impact. Calculating the mean per factor dose vs. supplement suggest both may have an impact.
+```{r,echo=TRUE}
+attach(ToothGrowth)
+summary(ToothGrowth)
+coplot(len ~ dose | supp, data = ToothGrowth, panel = panel.smooth,
+       xlab = "ToothGrowth data: length vs dose, given type of supplement")
+tapply(len,dose,mean)
+tapply(len,supp,mean)
+```
+So let's do some hypothesis testing. First we test the null that the mean length for both delivery methods are the same against the hypothesis that it's higher for OJ (one-sided test).
+```{r,echo=TRUE}
+x<-len[31:60]
+y<-len[1:30]
+t.test(x,y,alternative="greater",conf.level=0.95,var.equal=TRUE)
+```
+We can reject the null in favor of believing that receiving vitam C in form of orange juice helps tooth growth more than as supplement (for guinnea pigs, anyway). - I applied a t-test because the number of observations is rather small. We assume the administration of vitam C wasn't biased, or at least, drawing the observations wasn't. We get the same result whether or not we assume the variance of the two subsets to be equal.
+
+To investigate the effect of dose on tooth growth I'll apply a regression model. Since we already know (believe) supplement has an impact, I include it in the model as a factor.
+```{r,echo=TRUE}
+fit<-lm(len~dose+factor(supp))
+summary(fit)
+```
+Not surprisingly, the regression confirms that
+- the factor supplement has an impact
+- But also the variable dose is highly significant.
